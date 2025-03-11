@@ -17,7 +17,7 @@ fun AppNavigation(viewModel: ViewModel, modifier: Modifier) {
     val navController = rememberNavController()
 
     // Definimos el NavHost, que se encarga de gestionar la navegación entre las pantallas
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(navController = navController, startDestination = "portada") {
 
         // Ruta para la pantalla de la portada
         composable("portada") {

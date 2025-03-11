@@ -16,11 +16,6 @@ class ViewModel {
     private val _loginState: String? = ""
     var loginState = _loginState
 
-    fun respuesta(){
-
-    }
-
-
 
     // Almacena las sesiones que se hayan creado (usuario -> contraseña)
     private val _sessions = mutableStateMapOf<String, String>("Sergio" to "1234")
