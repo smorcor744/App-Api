@@ -3,75 +3,101 @@ package com.example.tareasapp
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.tareasapp.models.Tarea
+import com.example.tareasapp.models.TareaBody
+import com.example.tareasapp.models.TareaDto
+import com.example.tareasapp.retrofit.RetrofitClient
+import kotlinx.coroutines.launch
 
-class ViewModel {
+/**
+ * ViewModel para gestionar la lógica de autenticación y manejo de tareas de la aplicación.
+ */
+class ViewModel : ViewModel() {
 
-    private val _token =  mutableStateOf<String>("")
-    var token = _token
+    // Región: Autenticación
+    private val _token = mutableStateOf("") // Token del usuario autenticado
+    val token: State<String> = _token
 
-    fun changeToken(newToken: String?){
-        if (!newToken.isNullOrBlank()) _token.value = newToken
-    }
+    private val _sessions = mutableStateMapOf<String, String>("Sergio" to "1234") // Mapa de usuarios y contraseñas
 
-    private val _loginState: String? = ""
-    var loginState = _loginState
-
-
-    // Almacena las sesiones que se hayan creado (usuario -> contraseña)
-    private val _sessions = mutableStateMapOf<String, String>("Sergio" to "1234")
-
-    // Variables de estado para los campos de usuario, contraseña y confirmación
-    private var _username = mutableStateOf<String>("")
+    // Campos para formularios de autenticación
+    private val _username = mutableStateOf("")
     val username: State<String> = _username
 
-    private var _name = mutableStateOf<String>("")
+    private val _name = mutableStateOf("")
     val name: State<String> = _name
 
-    private var _password = mutableStateOf<String>("")
+    private val _password = mutableStateOf("")
     val password: State<String> = _password
 
-    private var _confirmPassword = mutableStateOf<String>("")
+    private val _confirmPassword = mutableStateOf("")
     val confirmPassword: State<String> = _confirmPassword
 
-    // Estados para controlar la visibilidad de las contraseñas
-    private var _passwordVisibility = mutableStateOf<Boolean>(false)
+    private val _passwordVisibility = mutableStateOf(false) // Estado de visibilidad de contraseña
     val passwordVisibility: State<Boolean> = _passwordVisibility
 
-    private var _passwordConfirmVisibility = mutableStateOf<Boolean>(false)
+    private val _passwordConfirmVisibility = mutableStateOf(false) // Estado de visibilidad de confirmación de contraseña
     val passwordConfirmVisibility: State<Boolean> = _passwordConfirmVisibility
+    // Fin Región: Autenticación
 
-    // Función para actualizar el nombre de usuario
+    // Región: Gestión de Tareas
+    private val _tareas = mutableStateListOf<Tarea>() // Lista de tareas
+    val tareas: List<Tarea> get() = _tareas
+
+    private val _isLoadingTareas = mutableStateOf(false) // Indicador de carga
+    val isLoadingTareas: State<Boolean> = _isLoadingTareas
+
+    private val _errorTareas = mutableStateOf("") // Mensaje de error
+    val errorTareas: State<String> = _errorTareas
+
+    /**
+     * Actualiza una tarea existente en la lista.
+     * @param tarea Tarea a actualizar.
+     */
+    fun actualizarTarea(tarea: Tarea) {
+        val index = _tareas.indexOfFirst { it.id == tarea.id }
+        if (index != -1) {
+            _tareas[index] = tarea
+        }
+    }
+    // Fin Región: Gestión de Tareas
+
+    // Región: Métodos de Autenticación
+    fun changeToken(newToken: String) {
+        if (newToken.isNotBlank()) _token.value = "Bearer $newToken"
+    }
+
     fun onNameChanged(newName: String) {
         _name.value = newName
     }
 
-    // Función para actualizar el nombre de usuario
     fun onUsernameChanged(newUsername: String) {
         _username.value = newUsername
     }
 
-    // Función para actualizar la contraseña
     fun onPasswordChanged(newPassword: String) {
         _password.value = newPassword
     }
 
-    // Función para actualizar la confirmación de la contraseña
     fun onConfirmPasswordChanged(newPassword: String) {
         _confirmPassword.value = newPassword
     }
 
-    // Alterna la visibilidad de la contraseña
     fun togglePasswordVisibility() {
         _passwordVisibility.value = !_passwordVisibility.value
     }
 
-    // Alterna la visibilidad de la confirmación de la contraseña
     fun toggleConfirmPasswordVisibility() {
         _passwordConfirmVisibility.value = !_passwordConfirmVisibility.value
     }
 
-
-    // Función para agregar una nueva sesión si las validaciones son correctas
+    /**
+     * Añade una nueva sesión si las validaciones son correctas.
+     * @return Verdadero si se añade exitosamente, falso en caso contrario.
+     */
     fun addSession(): Boolean {
         return if (!confirmUsernameError() && confirmPasswordError()) {
             _sessions[username.value] = password.value
@@ -79,25 +105,99 @@ class ViewModel {
         } else false
     }
 
-    // Valida que el nombre de usuario y su confirmación coincidan
     fun confirmUsernameError(): Boolean {
-        return _sessions.containsKey(_username.value)
+        return _sessions.containsKey(username.value)
     }
 
-    // Valida que la contraseña y su confirmación coincidan
     fun confirmPasswordError(): Boolean {
-        return _password.value == _confirmPassword.value
+        return password.value == confirmPassword.value
     }
 
-    // Verifica si el inicio de sesión es válido (usuario y contraseña correctos)
+    /**
+     * Confirma las credenciales del usuario para el inicio de sesión.
+     */
     fun confirmLogin(): Boolean {
-        // Comprueba que el nombre de usuario y la contraseña no estén vacíos
-        if (_username.value.isNotEmpty() && _password.value.isNotEmpty()) {
-            // Verifica si el usuario existe y la contraseña es correcta
-            if (_sessions.containsKey(_username.value) && _sessions[_username.value] == _password.value) {
-                return true
+        return _username.value.isNotEmpty() &&
+                _password.value.isNotEmpty() &&
+                _sessions.containsKey(username.value) &&
+                _sessions[username.value] == password.value
+    }
+    // Fin Región: Métodos de Autenticación
+
+    // Región: Métodos de Tareas
+    /**
+     * Carga las tareas desde el servidor.
+     */
+    fun cargarTareas() {
+        viewModelScope.launch {
+            _isLoadingTareas.value = true
+            try {
+                val response = RetrofitClient.instance.obtenerTareas(_token.value)
+                if (response.isSuccessful) {
+                    _tareas.clear()
+                    response.body()?.let { _tareas.addAll(it) }
+                    _errorTareas.value = ""
+                } else {
+                    _errorTareas.value = "Error ${response.code()}: ${response.message()}"
+                }
+            } catch (e: Exception) {
+                _errorTareas.value = "Error de conexión: ${e.message}"
+            } finally {
+                _isLoadingTareas.value = false
             }
         }
-        return false
     }
+
+    /**
+     * Crea una nueva tarea enviándola al servidor.
+     */
+    fun crearTarea(tarea: TareaBody) {
+        viewModelScope.launch {
+            _isLoadingTareas.value = true
+            try {
+                val response = RetrofitClient.instance.crearTarea(_token.value, tarea)
+                if (response.isSuccessful) {
+                    response.body()?.let { nuevaTarea ->
+                        _tareas.add(nuevaTarea)
+                        _errorTareas.value = ""
+                    }
+                } else {
+                    _errorTareas.value = "Error al crear tarea: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _errorTareas.value = "Error: ${e.message}"
+            } finally {
+                _isLoadingTareas.value = false
+            }
+        }
+    }
+
+    /**
+     * Marca una tarea como completada en el servidor.
+     */
+    fun completarTarea(tarea: TareaDto) {
+        viewModelScope.launch {
+            _isLoadingTareas.value = true
+            try {
+                val response = RetrofitClient.instance.completarTarea(_token.value, tarea)
+                if (response.isSuccessful) {
+                    cargarTareas()
+                } else {
+                    _errorTareas.value = "Error al modificar la tarea: ${response.code()}"
+                }
+            } catch (e: Exception) {
+                _errorTareas.value = "Error: ${e.message}"
+            } finally {
+                _isLoadingTareas.value = false
+            }
+        }
+    }
+
+    /**
+     * Elimina una tarea localmente de la lista.
+     */
+    fun eliminarTareaLocal(tarea: Tarea) {
+        _tareas.remove(tarea)
+    }
+    // Fin Región: Métodos de Tareas
 }

@@ -23,14 +23,19 @@ import com.example.tareasapp.ui.theme.Naranja
 import com.example.tareasapp.ui.theme.White
 import kotlinx.coroutines.launch
 
+/**
+ * Pantalla de inicio de sesión donde el usuario introduce sus credenciales.
+ * @param navController Controlador de navegación para redirigir al usuario a otras pantallas.
+ * @param viewModel ViewModel que gestiona el estado de la pantalla.
+ */
 @Composable
 fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
+    // Declaración de variables de estado para los campos de texto y visibilidad de contraseña.
     var username = viewModel.username.value
     var password = viewModel.password.value
     var passwordVisible = viewModel.passwordVisibility.value
     var showDialog by remember { mutableStateOf(false) }
     var dialogMessage by remember { mutableStateOf("") }
-
     val scope = rememberCoroutineScope()
 
     Surface(
@@ -42,6 +47,7 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            // Título principal
             Text(
                 modifier = Modifier.padding(bottom = 20.dp),
                 text = "Inicia Sesión",
@@ -50,6 +56,7 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
                 color = White
             )
 
+            // Campo de texto para usuario
             TextField(
                 value = username,
                 onValueChange = { viewModel.onUsernameChanged(it) },
@@ -58,6 +65,7 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
             )
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Campo de texto para contraseña
             TextField(
                 value = password,
                 onValueChange = { viewModel.onPasswordChanged(it) },
@@ -75,6 +83,7 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
                 modifier = Modifier.fillMaxWidth(0.8f)
             )
 
+            // Enlace para recuperar contraseña
             Text(
                 text = "¿Has olvidado la contraseña?",
                 color = Color.Blue,
@@ -82,15 +91,13 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier
                     .fillMaxWidth(0.8f)
-                    .clickable {
-                        navController.navigate("menu")
-                    }
+                    .clickable { navController.navigate("menu") }
                     .padding(top = 10.dp),
                 fontSize = 15.sp
             )
-
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Botones para iniciar sesión o registrar
             Row(
                 modifier = Modifier
                     .fillMaxWidth(0.8f)
@@ -102,8 +109,8 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
                     onClick = {
                         scope.launch {
                             try {
+                                // Realiza la solicitud de inicio de sesión
                                 val response = RetrofitClient.instance.login(LoginBody(username, password))
-                                println(response)
                                 dialogMessage = response.body().toString()
                                 if (response.isSuccessful) {
                                     val token = response.body()?.token
@@ -115,44 +122,32 @@ fun LoginScreen(navController: NavHostController, viewModel: ViewModel) {
                                     } else {
                                         dialogMessage = "Error: No se recibió un token válido"
                                     }
-                                }
-                                else {
+                                } else {
                                     val errorBody = response.errorBody()?.string()
-                                    dialogMessage = "Error: $errorBody" // Muestra el cuerpo del error
-                                    println("Error Body: $errorBody") // Imprime el cuerpo del error
+                                    dialogMessage = "Error: $errorBody"
                                 }
                             } catch (e: Exception) {
                                 dialogMessage = "Error: ${e.message}"
-                                println("Error: ${e.message}") // Imprime el error
                             }
                             showDialog = true
                         }
                     }
-                ) {
-                    Text("Iniciar sesión")
-                }
-
+                ) { Text("Iniciar sesión") }
                 Spacer(modifier = Modifier.width(20.dp))
-
                 Button(
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(LightBlue),
                     onClick = { navController.navigate("register") }
-                ) {
-                    Text("Registrar usuario")
-                }
+                ) { Text("Registrar usuario") }
             }
         }
     }
 
+    // Diálogo para mostrar mensajes de respuesta del servidor
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showDialog = false }) {
-                    Text("Aceptar")
-                }
-            },
+            confirmButton = { TextButton(onClick = { showDialog = false }) { Text("Aceptar") } },
             title = { Text("Respuesta del Servidor") },
             text = { Text(dialogMessage) }
         )

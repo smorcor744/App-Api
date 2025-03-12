@@ -48,7 +48,7 @@ fun PortadaScreen(navController: NavHostController) {
             )*/
             // Título de la aplicación
             Text(
-                text = "Entrenamientos App", // Texto que se muestra
+                text = "Tareas App", // Texto que se muestra
                 fontSize = 25.sp , // Tamaño de la fuente
                 style = MaterialTheme.typography.labelLarge, // Estilo de texto según el tema
                 color = White // Color blanco para el texto

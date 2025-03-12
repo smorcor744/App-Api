@@ -1,173 +1,97 @@
 package com.example.tareasapp.screens
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddCircle
-import androidx.compose.material.icons.filled.Task
-import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import com.example.tareasapp.utils.BottomBar
-import com.example.tareasapp.utils.Header
-import com.example.tareasapp.utils.MenuOption
+import android.app.Dialog
 import androidx.compose.foundation.layout.*
-
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import com.example.tareasapp.ViewModel
+import com.example.tareasapp.models.Tarea
 import com.example.tareasapp.models.TareaBody
 import com.example.tareasapp.models.TareaDto
 import com.example.tareasapp.retrofit.RetrofitClient
+import com.example.tareasapp.utils.BottomBar
+import com.example.tareasapp.utils.Header
 import kotlinx.coroutines.launch
 
+/**
+ * Pantalla principal del menú donde se listan las tareas y se permite crear nuevas.
+ */
 @Composable
-fun MainMenu(navController: NavHostController, modifier: Modifier, viewModel: ViewModel) {
-    var showTaskListDialog by remember { mutableStateOf(false) }
-    var showUserTaskDialog by remember { mutableStateOf(false) }
-    var showCreateTaskDialog by remember { mutableStateOf(false) }
-    var showDeleteTaskDialog by remember { mutableStateOf(false) }
-    var showCompleteTaskDialog by remember { mutableStateOf(false) }
+fun MainMenu(
+    navController: NavHostController,
+    modifier: Modifier,
+    viewModel: ViewModel
+) {
+    var showCreateDialog by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
-    val token = viewModel.token.value
-
-    Scaffold(
-        topBar = { Header(navController, modifier) },
-        bottomBar = { BottomBar(navController, modifier) }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item { MenuOption(Icons.Filled.Task, "Obtener Tareas") { showTaskListDialog = true } }
-            item {
-                MenuOption(
-                    Icons.Filled.Person,
-                    "Obtener Tareas del Usuario"
-                ) { showUserTaskDialog = true }
-            }
-            item {
-                MenuOption(Icons.Filled.AddCircle, "Crear Tarea") {
-                    showCreateTaskDialog = true
-                }
-            }
-            item {
-                MenuOption(
-                    Icons.Filled.CheckCircle,
-                    "Marcar Tarea Completada"
-                ) { showCompleteTaskDialog = true }
-            }
-            item {
-                MenuOption(Icons.Filled.Delete, "Eliminar Tarea") {
-                    showDeleteTaskDialog = true
-                }
-            }
-
+    // Cargar tareas al iniciar si el token es válido
+    LaunchedEffect(viewModel.token.value) {
+        if (viewModel.token.value.isNotBlank()) {
+            viewModel.cargarTareas()
         }
     }
 
-    if (showTaskListDialog) TaskListDialog({ showTaskListDialog = false }, token)
-    if (showUserTaskDialog) UserTaskDialog({ showUserTaskDialog = false }, token)
-    if (showCreateTaskDialog) CreateTaskDialog({ showCreateTaskDialog = false }, token)
-    if (showCompleteTaskDialog) CompleteTaskDialog({ showCompleteTaskDialog = false }, token)
-    if (showDeleteTaskDialog) DeleteTaskDialog({ showDeleteTaskDialog = false }, token)
-
-}
-@Composable
-fun TaskListDialog(onDismiss: () -> Unit, token: String) {
-    var dialogMessage by remember { mutableStateOf("") }
-    var showResultDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Lista de Tareas") },
-        text = { Text("Presiona 'Obtener' para cargar las tareas.") },
-        confirmButton = {
-            TextButton(onClick = {
-                scope.launch {
-                    try {
-                        val response = RetrofitClient.instance.obtenerTareas("Bearer $token")
-                        if (response.isSuccessful) {
-                            dialogMessage = "Tareas:\n${response.body()}"
-                        } else {
-                            dialogMessage = "Error: ${response.errorBody()?.string()}"
-                        }
-                    } catch (e: Exception) {
-                        dialogMessage = "Excepción: ${e.message}"
-                    }
-                    showResultDialog = true
-                }
-            }) { Text("Obtener") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } }
-    )
-
-    if (showResultDialog) {
-        AlertDialog(
-            onDismissRequest = { showResultDialog = false },
-            title = { Text("Resultado") },
-            text = { Text(dialogMessage) },
-            confirmButton = { TextButton(onClick = { showResultDialog = false }) { Text("Aceptar") } }
-        )
-    }
-}
-@Composable
-fun UserTaskDialog(onDismiss: () -> Unit, token: String) {
-    var username by remember { mutableStateOf("") }
-    var dialogMessage by remember { mutableStateOf("") }
-    var showResultDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Obtener Tareas del Usuario") },
-        text = {
-            Column {
-                OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Nombre del Usuario") })
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Aquí se mostrarán las tareas de $username")
+    Scaffold(
+        topBar = { Header(navController, modifier) },
+        bottomBar = { BottomBar(navController, modifier) },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showCreateDialog = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Añadir tarea")
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                scope.launch {
-                    try {
-                        val response = RetrofitClient.instance.obtenerTareasUsuario("Bearer $token", username)
-                        if (response.isSuccessful) {
-                            dialogMessage = "Tareas de $username:\n${response.body()?.joinToString("\n") { it.titulo }}"
-                        } else {
-                            dialogMessage = "Error: ${response.errorBody()?.string()} No tienes permiso para esto"
-                        }
-                    } catch (e: Exception) {
-                        dialogMessage = "Excepción: ${e.message}"
-                    }
-                    showResultDialog = true
+        }
+    ) { innerPadding ->
+        when {
+            // Muestra un indicador de carga mientras se cargan las tareas
+            viewModel.isLoadingTareas.value -> {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
                 }
-            }) { Text("Buscar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-
-    if (showResultDialog) {
-        AlertDialog(
-            onDismissRequest = { showResultDialog = false },
-            title = { Text("Resultado") },
-            text = { Text(dialogMessage) },
-            confirmButton = { TextButton(onClick = { showResultDialog = false }) { Text("Aceptar") } }
-        )
+            }
+            // Muestra un mensaje de error en caso de fallo
+            viewModel.errorTareas.value.isNotEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                    Text(text = viewModel.errorTareas.value, color = Color.Red, modifier = Modifier.padding(16.dp))
+                }
+            }
+            // Lista las tareas disponibles
+            else -> {
+                LazyColumn(modifier = Modifier.padding(innerPadding).fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(viewModel.tareas) { tarea ->
+                        TareaItem(
+                            tarea = tarea,
+                            onComplete = {
+                                viewModel.completarTarea(TareaDto(tarea.username, tarea.titulo))
+                                tarea.estado = if (tarea.estado == "completada") "pendiente" else "completada"
+                                viewModel.cargarTareas()
+                            },
+                            onDelete = { viewModel.eliminarTareaLocal(tarea) }
+                        )
+                    }
+                }
+            }
+        }
+        if (showCreateDialog) CreateTaskDialog({ navController.navigate("menu") }, viewModel)
     }
-}@Composable
-fun CreateTaskDialog(onDismiss: () -> Unit, token: String) {
+}
+
+/**
+ * Diálogo para la creación de una nueva tarea.
+ */
+@Composable
+fun CreateTaskDialog(onDismiss: () -> Unit, viewModel: ViewModel) {
     var username by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -190,11 +114,11 @@ fun CreateTaskDialog(onDismiss: () -> Unit, token: String) {
                 val tareaBody = TareaBody(username, title, description)
                 scope.launch {
                     try {
-                        val response = RetrofitClient.instance.crearTarea("Bearer $token", tareaBody)
-                        if (response.isSuccessful) {
-                            dialogMessage = "Tarea creada con éxito: ${response.body()?.titulo}"
+                        val response = RetrofitClient.instance.crearTarea("Bearer ${viewModel.token}", tareaBody)
+                        dialogMessage = if (response.isSuccessful) {
+                            "Tarea creada con éxito: ${response.body()?.titulo}"
                         } else {
-                            dialogMessage = "Error: ${response.errorBody()?.string()}"
+                            "Error: ${response.errorBody()?.string()}"
                         }
                     } catch (e: Exception) {
                         dialogMessage = "Excepción: ${e.message}"
@@ -215,100 +139,42 @@ fun CreateTaskDialog(onDismiss: () -> Unit, token: String) {
         )
     }
 }
+
+/**
+ * Representación visual de una tarea en la lista.
+ */
 @Composable
-fun DeleteTaskDialog(onDismiss: () -> Unit, token: String) {
-    var username by remember { mutableStateOf("") }
-    var title by remember { mutableStateOf("") }
-    var dialogMessage by remember { mutableStateOf("") }
-    var showResultDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    var borrar by remember { mutableStateOf(false) }
-
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Eliminar Tarea") },
-        text = {
-            Column {
-                OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Usuario") })
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título de la Tarea") })
+fun TareaItem(
+    tarea: Tarea,
+    onComplete: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = tarea.titulo, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(text = tarea.descripcion, style = MaterialTheme.typography.bodyMedium)
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                scope.launch {
-                    try {
-                        val tareaDto = TareaDto(username, title)
-                        val response = RetrofitClient.instance.deleteTarea("Bearer $token", tareaDto)
-                        if (response.isSuccessful) {
-                            dialogMessage = "Tarea eliminada con éxito"
-                        } else {
-                            dialogMessage = "Error: ${response.errorBody()?.string()}"
-                        }
-                    } catch (e: Exception) {
-                        dialogMessage = "Excepción: ${e.message}"
-                    }
-                    showResultDialog = true
+            Row {
+                IconButton(onClick = onComplete) {
+                    Icon(
+                        imageVector = if (tarea.estado == "completada") Icons.Default.Check else Icons.Default.Close,
+                        contentDescription = "Completar tarea",
+                        tint = if (tarea.estado == "completada") Color.Green else Color.Red
+                    )
                 }
-            }) { Text("Eliminar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-
-    if (showResultDialog) {
-        AlertDialog(
-            onDismissRequest = { showResultDialog = false },
-            title = { Text("Resultado") },
-            text = { Text(dialogMessage) },
-            confirmButton = { TextButton(onClick = { showResultDialog = false }) { Text("Aceptar") } }
-        )
-    }
-}
-
-@Composable
-fun CompleteTaskDialog(onDismiss: () -> Unit, token: String) {
-    var username by remember { mutableStateOf("") }
-    var title by remember { mutableStateOf("") }
-    var dialogMessage by remember { mutableStateOf("") }
-    var showResultDialog by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Marcar Tarea como Completada") },
-        text = {
-            Column {
-                OutlinedTextField(value = username, onValueChange = { username = it }, label = { Text("Usuario") })
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Título de la Tarea") })
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.error)
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val tareaDto = TareaDto(username, title)
-                scope.launch {
-                    try {
-                        val response = RetrofitClient.instance.completarTarea("Bearer $token", tareaDto)
-                        if (response.isSuccessful) {
-                            dialogMessage = "Tarea marcada como completada: ${response.body()?.titulo}"
-                        } else {
-                            dialogMessage = "Error: ${response.errorBody()?.string()}"
-                        }
-                    } catch (e: Exception) {
-                        dialogMessage = "Excepción: ${e.message}"
-                    }
-                    showResultDialog = true
-                }
-            }) { Text("Completar") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } }
-    )
-
-    if (showResultDialog) {
-        AlertDialog(
-            onDismissRequest = { showResultDialog = false },
-            title = { Text("Resultado") },
-            text = { Text(dialogMessage) },
-            confirmButton = { TextButton(onClick = { showResultDialog = false }) { Text("Aceptar") } }
-        )
+        }
     }
 }

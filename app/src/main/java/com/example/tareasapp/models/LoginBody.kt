@@ -29,7 +29,7 @@ data class Tarea(
     val username: String ,
     val titulo: String,
     val descripcion: String,
-    val estado: String? ,
+    var estado: String? ,
     val fechaCreacion: String?
 )
 
